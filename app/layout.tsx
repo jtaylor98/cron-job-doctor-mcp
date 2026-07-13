@@ -1,6 +1,6 @@
 export const metadata = {
-  title: "Schwab MCP Server",
-  description: "Remote MCP server exposing Schwab account tools to Claude",
+  title: "Cron Job Doctor MCP",
+  description: "Remote MCP server that diagnoses scheduled GitHub Actions workflows",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
