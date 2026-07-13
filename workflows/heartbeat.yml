@@ -2,8 +2,8 @@ name: Heartbeat
 
 on:
   schedule:
-    - cron: "*/15 * * * *"  # every 15 minutes
-  workflow_dispatch:         # lets you trigger it manually too, for instant testing
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
 
 jobs:
   ping:
@@ -11,3 +11,24 @@ jobs:
     steps:
       - name: Say hello
         run: echo "Still alive at $(date -u)"
+
+      - name: Simulate variable duration
+        run: |
+          # Sleeps a random amount up to 90s, occasionally spiking higher
+          # to simulate duration creep for testing purposes.
+          SLEEP=$((RANDOM % 90))
+          if [ $((RANDOM % 5)) -eq 0 ]; then
+            SLEEP=$((SLEEP + 240))  # occasional big spike
+          fi
+          echo "Sleeping ${SLEEP}s"
+          sleep $SLEEP
+
+      - name: Randomly fail
+        run: |
+          # Fails roughly 1 in 4 runs, to produce a real recent_failure
+          # for testing the diagnose_workflow anomaly detection.
+          if [ $((RANDOM % 4)) -eq 0 ]; then
+            echo "Simulated failure"
+            exit 1
+          fi
+          echo "OK"
