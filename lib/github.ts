@@ -114,7 +114,7 @@ export async function getWorkflowRuns(
 }
 
 export interface Anomaly {
-  type: "stuck" | "retry_storm" | "duration_creep" | "recent_failure";
+  type: "stuck" | "retry_storm" | "duration_creep" | "recent_failure" | "failure_rate";
   severity: "low" | "medium" | "high";
   message: string;
 }
@@ -137,12 +137,30 @@ export function detectAnomalies(runs: WorkflowRun[]): Anomaly[] {
 
   const latest = runs[0];
 
-  // Recent failure
+  // Recent failure: the single most recent run failed. This alone doesn't
+  // tell you whether it's an isolated blip or a pattern -- see failure_rate
+  // below for that.
   if (latest.conclusion === "failure") {
     anomalies.push({
       type: "recent_failure",
       severity: "high",
       message: `Most recent scheduled run failed (run ${latest.id}).`,
+    });
+  }
+
+  // Failure rate: scans the whole analyzed window, not just the latest run,
+  // so a workflow that's intermittently failing gets flagged even if its
+  // most recent run happened to succeed.
+  const completed = runs.filter((r) => r.status === "completed");
+  const failures = completed.filter((r) => r.conclusion === "failure");
+  if (completed.length >= 5 && failures.length >= 2) {
+    const rate = failures.length / completed.length;
+    anomalies.push({
+      type: "failure_rate",
+      severity: rate >= 0.25 ? "high" : "medium",
+      message: `${failures.length} of the last ${completed.length} runs failed ` +
+        `(${Math.round(rate * 100)}% failure rate), even though the most recent ` +
+        `run may have succeeded. Worth checking for an intermittent issue.`,
     });
   }
 

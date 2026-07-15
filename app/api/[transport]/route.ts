@@ -53,7 +53,8 @@ const handler = createMcpHandler(async (server) => {
   server.tool(
     "diagnose_workflow",
     "Fetch a workflow's run history and flag anomalies: stuck schedules, " +
-      "retry storms, duration creep, and recent failures",
+      "retry storms, duration creep, a failed most-recent run, and an " +
+      "elevated failure rate across recent runs (even if the latest one succeeded)",
     {
       ...repoArgs,
       workflow_id: z.number().describe("Workflow ID from list_scheduled_workflows"),
