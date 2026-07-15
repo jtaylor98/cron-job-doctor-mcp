@@ -2,7 +2,7 @@ import { createMcpHandler } from "@vercel/mcp-adapter";
 import { z } from "zod";
 
 const handler = createMcpHandler(
-  (server) => {
+  async (server) => {
     server.tool(
       "roll_dice",
       "Rolls an N-sided die",
