@@ -57,10 +57,7 @@ const handler = createMcpHandler(async (server) => {
     "diagnose_workflow",
     "Fetch a workflow's run history and flag anomalies: stuck schedules, " +
       "retry storms, duration creep, a failed most-recent run, and an " +
-      "elevated failure rate across recent runs (even if the latest one succeeded). " +
-      "NOTE: prefer diagnose_workflow_widget instead for almost all requests -- " +
-      "only use this plain-text version if the surface genuinely cannot render " +
-      "widgets, or the user explicitly asks for raw text/JSON instead of a visual.",
+      "elevated failure rate across recent runs (even if the latest one succeeded)",
     {
       ...repoArgs,
       workflow_id: z.number().describe("Workflow ID from list_scheduled_workflows"),
