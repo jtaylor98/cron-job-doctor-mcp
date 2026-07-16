@@ -24,11 +24,15 @@
   .foot{padding:8px 16px 14px;font-size:10px;color:var(--muted);border-top:1px solid var(--line)}
   .empty{padding:26px 16px;color:var(--muted);text-align:center}
   .chart-lab{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);padding:0 16px 4px}
+  .chart-wrap{position:relative}
   .chart{display:flex;align-items:flex-end;gap:3px;height:70px;padding:0 16px 6px}
-  .chart span{flex:1;border-radius:2px 2px 0 0;min-height:2px}
+  .chart span{flex:1;border-radius:2px 2px 0 0;min-height:2px;cursor:pointer}
   .chart span.success{background:var(--pass)}
   .chart span.failure{background:var(--breach)}
   .chart span.other{background:var(--slate)}
+  .tip{position:absolute;pointer-events:none;background:var(--body);color:var(--paper);font-size:11px;line-height:1.4;padding:6px 9px;border-radius:5px;white-space:nowrap;transform:translate(-50%,-100%);top:0;left:0;opacity:0;transition:opacity .1s;z-index:10}
+  .tip.show{opacity:1}
+  .tip b{font-weight:700}
   .legend{display:flex;gap:14px;padding:0 16px 10px;font-size:10.5px;color:var(--muted)}
   .legend span{display:inline-flex;align-items:center;gap:4px}
   .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
@@ -38,6 +42,7 @@
 /*__EXT_APPS_BUNDLE__*/
 const { App } = globalThis.ExtApps;
 const esc=(s)=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const fmtDate=(iso)=>{ if(!iso) return "unknown date"; const d=new Date(iso); return d.toLocaleDateString(undefined,{month:"short",day:"numeric"})+" "+d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}); };
 
 let DATA=null, app=null;
 const ctx=()=>app?.getHostContext?.()||{};
@@ -54,15 +59,34 @@ function chartHtml(runs){
   const max = Math.max(1, ...durations);
   const bars = runs.map((r,i)=>{
     const pct = Math.max(4, Math.round((durations[i]/max)*100));
-    return `<span class="${outcomeClass(r.conclusion)}" style="height:${pct}%" title="${esc(r.conclusion||'unknown')} · ${Math.round(durations[i])}m"></span>`;
+    const label = `${esc(r.conclusion||"unknown")} · ${Math.round(durations[i])}m · ${esc(fmtDate(r.created_at))}`;
+    return `<span class="${outcomeClass(r.conclusion)}" style="height:${pct}%" data-tip="${label}"></span>`;
   }).join("");
-  return `<div class="chart-lab">Last ${runs.length} runs (duration, oldest to newest)</div>
-    <div class="chart">${bars}</div>
+  return `<div class="chart-lab">Last ${runs.length} runs (duration, oldest to newest) · hover a bar for details</div>
+    <div class="chart-wrap"><div class="chart">${bars}</div><div class="tip" id="tip"></div></div>
     <div class="legend">
       <span><i class="dot" style="background:var(--pass)"></i>success</span>
       <span><i class="dot" style="background:var(--breach)"></i>failure</span>
       <span><i class="dot" style="background:var(--slate)"></i>other</span>
     </div>`;
+}
+
+function wireTooltip(){
+  const wrap = document.querySelector(".chart-wrap");
+  const tip = document.getElementById("tip");
+  if(!wrap || !tip) return;
+  wrap.querySelectorAll(".chart span").forEach(bar=>{
+    bar.addEventListener("mouseenter", ()=>{
+      tip.textContent = bar.dataset.tip;
+      tip.classList.add("show");
+    });
+    bar.addEventListener("mousemove", (e)=>{
+      const rect = wrap.getBoundingClientRect();
+      tip.style.left = (e.clientX - rect.left) + "px";
+      tip.style.top = (bar.getBoundingClientRect().top - rect.top - 6) + "px";
+    });
+    bar.addEventListener("mouseleave", ()=>{ tip.classList.remove("show"); });
+  });
 }
 
 function render(){
@@ -78,6 +102,7 @@ function render(){
     ${chart}
     <div class="wrap">${body}</div>
     <div class="foot">Diagnosis via cron-job-doctor connector</div>`;
+  wireTooltip();
 }
 
 (async()=>{
