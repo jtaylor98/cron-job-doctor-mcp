@@ -17,13 +17,16 @@ export function registerWidgets(server: any) {
     {
       title: "Diagnose a workflow (interactive widget)",
       description:
-        "Render a workflow's diagnosis as an interactive widget: a bar chart " +
-        "of the last 20 runs (duration, colored by success/failure) plus any " +
-        "flagged anomalies (stuck, retry storm, duration creep, recent " +
-        "failure, failure rate). Use when the user wants to SEE the diagnosis " +
-        "visually rather than read it as text. Pass owner, repo, and " +
-        "workflow_id. PRESENTATION: the widget shows the chart and anomalies " +
-        "-- summarize briefly, don't restate them.",
+        "DEFAULT tool for any question about one specific workflow's health " +
+        "or status -- 'how is X doing', 'check on X', 'is X okay', not just " +
+        "requests that explicitly say 'show me' or 'visualize'. Use this " +
+        "instead of the plain-text diagnose_workflow tool whenever a single " +
+        "workflow_id is being asked about. Renders an interactive widget: a " +
+        "bar chart of the last 20 runs (duration, colored by success/failure) " +
+        "plus any flagged anomalies (stuck, retry storm, duration creep, " +
+        "recent failure, failure rate). Pass owner, repo, and workflow_id. " +
+        "PRESENTATION: the widget shows the chart and anomalies -- summarize " +
+        "briefly, don't restate them.",
       inputSchema: {
         owner: z.string().describe("GitHub repo owner"),
         repo: z.string().describe("GitHub repo name"),
