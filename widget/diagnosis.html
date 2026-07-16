@@ -59,10 +59,12 @@ function chartHtml(runs){
   const max = Math.max(1, ...durations);
   const bars = runs.map((r,i)=>{
     const pct = Math.max(4, Math.round((durations[i]/max)*100));
-    const label = `${esc(r.conclusion||"unknown")} · ${Math.round(durations[i])}m · ${esc(fmtDate(r.created_at))}`;
-    return `<span class="${outcomeClass(r.conclusion)}" style="height:${pct}%" data-tip="${label}"></span>`;
+    const dur = Math.round(durations[i]);
+    const conclusion = r.conclusion || "unknown";
+    return `<span class="${outcomeClass(r.conclusion)}" style="height:${pct}%" ` +
+      `data-id="${esc(r.id)}" data-conclusion="${esc(conclusion)}" data-duration="${dur}" data-date="${esc(fmtDate(r.created_at))}"></span>`;
   }).join("");
-  return `<div class="chart-lab">Last ${runs.length} runs (duration, oldest to newest) · hover a bar for details</div>
+  return `<div class="chart-lab">Last ${runs.length} runs (duration, oldest to newest)</div>
     <div class="chart-wrap"><div class="chart">${bars}</div><div class="tip" id="tip"></div></div>
     <div class="legend">
       <span><i class="dot" style="background:var(--pass)"></i>success</span>
@@ -71,13 +73,21 @@ function chartHtml(runs){
     </div>`;
 }
 
+function ask(text){ try{ app.sendMessage({role:"user",content:[{type:"text",text}]}); }catch{} }
+
+function followUpText(bar){
+  const id = bar.dataset.id, conclusion = bar.dataset.conclusion, dur = bar.dataset.duration, date = bar.dataset.date;
+  if(conclusion==="failure") return `Why did run #${id} fail? It ran on ${date} and took ${dur} minutes.`;
+  return `Tell me more about run #${id} from ${date} (${dur}m, ${conclusion}).`;
+}
+
 function wireTooltip(){
   const wrap = document.querySelector(".chart-wrap");
   const tip = document.getElementById("tip");
   if(!wrap || !tip) return;
   wrap.querySelectorAll(".chart span").forEach(bar=>{
     bar.addEventListener("mouseenter", ()=>{
-      tip.textContent = bar.dataset.tip;
+      tip.textContent = `${bar.dataset.conclusion} · ${bar.dataset.duration}m · ${bar.dataset.date}`;
       tip.classList.add("show");
     });
     bar.addEventListener("mousemove", (e)=>{
@@ -86,6 +96,7 @@ function wireTooltip(){
       tip.style.top = (bar.getBoundingClientRect().top - rect.top - 6) + "px";
     });
     bar.addEventListener("mouseleave", ()=>{ tip.classList.remove("show"); });
+    bar.addEventListener("click", ()=>{ ask(followUpText(bar)); });
   });
 }
 
