@@ -23,6 +23,15 @@
   .msg{font-size:12.5px;color:var(--body);margin-top:3px;line-height:1.4}
   .foot{padding:8px 16px 14px;font-size:10px;color:var(--muted);border-top:1px solid var(--line)}
   .empty{padding:26px 16px;color:var(--muted);text-align:center}
+  .chart-lab{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);padding:0 16px 4px}
+  .chart{display:flex;align-items:flex-end;gap:3px;height:70px;padding:0 16px 6px}
+  .chart span{flex:1;border-radius:2px 2px 0 0;min-height:2px}
+  .chart span.success{background:var(--pass)}
+  .chart span.failure{background:var(--breach)}
+  .chart span.other{background:var(--slate)}
+  .legend{display:flex;gap:14px;padding:0 16px 10px;font-size:10.5px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:4px}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
 </style>
 <div id="root"><div class="empty">Loading diagnosis…</div></div>
 <script type="module">
@@ -34,14 +43,39 @@ let DATA=null, app=null;
 const ctx=()=>app?.getHostContext?.()||{};
 const sevClass=(s)=> s==="high"?"breach": s==="medium"?"watch":"watch";
 
+function outcomeClass(conclusion){ return conclusion==="success"?"success": conclusion==="failure"?"failure":"other"; }
+
+function chartHtml(runs){
+  if(!runs || runs.length===0) return "";
+  const durations = runs.map(r=>{
+    if(!r.run_started_at || !r.updated_at) return 0;
+    return (new Date(r.updated_at) - new Date(r.run_started_at)) / 60000;
+  });
+  const max = Math.max(1, ...durations);
+  const bars = runs.map((r,i)=>{
+    const pct = Math.max(4, Math.round((durations[i]/max)*100));
+    return `<span class="${outcomeClass(r.conclusion)}" style="height:${pct}%" title="${esc(r.conclusion||'unknown')} · ${Math.round(durations[i])}m"></span>`;
+  }).join("");
+  return `<div class="chart-lab">Last ${runs.length} runs (duration, oldest to newest)</div>
+    <div class="chart">${bars}</div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--pass)"></i>success</span>
+      <span><i class="dot" style="background:var(--breach)"></i>failure</span>
+      <span><i class="dot" style="background:var(--slate)"></i>other</span>
+    </div>`;
+}
+
 function render(){
   const root=document.getElementById("root");
   if(!DATA){ root.innerHTML='<div class="empty">No diagnosis data.</div>'; return; }
   const anomalies=DATA.anomalies||[];
+  const runsOldestFirst = (DATA.runs||[]).slice().reverse();
+  const chart = chartHtml(runsOldestFirst);
   const body = anomalies.length===0
     ? `<div class="card pass"><div class="lab">Healthy</div><div class="msg">No anomalies detected across ${DATA.runs_analyzed} analyzed runs.</div></div>`
     : anomalies.map(a=>`<div class="card ${sevClass(a.severity)}"><div class="lab">${esc(a.type)} · ${esc(a.severity)}</div><div class="msg">${esc(a.message)}</div></div>`).join("");
   root.innerHTML = `<div class="hd"><h1>Cron Job Doctor</h1><span class="as">Workflow ${esc(DATA.workflow_id)} · ${DATA.runs_analyzed} runs analyzed</span></div>
+    ${chart}
     <div class="wrap">${body}</div>
     <div class="foot">Diagnosis via cron-job-doctor connector</div>`;
 }

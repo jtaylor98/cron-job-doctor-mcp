@@ -17,12 +17,13 @@ export function registerWidgets(server: any) {
     {
       title: "Diagnose a workflow (interactive widget)",
       description:
-        "Render a workflow's diagnosis as an interactive widget: health status " +
-        "and any flagged anomalies (stuck, retry storm, duration creep, recent " +
+        "Render a workflow's diagnosis as an interactive widget: a bar chart " +
+        "of the last 20 runs (duration, colored by success/failure) plus any " +
+        "flagged anomalies (stuck, retry storm, duration creep, recent " +
         "failure, failure rate). Use when the user wants to SEE the diagnosis " +
         "visually rather than read it as text. Pass owner, repo, and " +
-        "workflow_id. PRESENTATION: the widget shows the anomalies -- " +
-        "summarize briefly, don't restate them.",
+        "workflow_id. PRESENTATION: the widget shows the chart and anomalies " +
+        "-- summarize briefly, don't restate them.",
       inputSchema: {
         owner: z.string().describe("GitHub repo owner"),
         repo: z.string().describe("GitHub repo name"),
@@ -38,12 +39,13 @@ export function registerWidgets(server: any) {
         runs_analyzed: runs.length,
         latest_run: runs[0] ?? null,
         anomalies,
+        runs,
       };
       return {
         content: [
           {
             type: "text",
-            text: `Diagnosis widget rendered for workflow ${workflow_id}: ${anomalies.length} anomaly(ies) found. Don't restate them.`,
+            text: `Diagnosis widget rendered for workflow ${workflow_id}: ${anomalies.length} anomaly(ies) found across ${runs.length} runs. Don't restate them.`,
           },
         ],
         structuredContent: payload,
