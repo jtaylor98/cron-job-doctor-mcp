@@ -281,3 +281,40 @@ export async function setWorkflowEnabled(
     `/repos/${owner}/${repo}/actions/workflows/${workflowId}/${action}`
   );
 }
+
+export interface WorkflowSummaryStats {
+  runs_analyzed: number;
+  failure_rate_pct: number;
+  avg_duration_min: number;
+  anomaly_count: number;
+}
+
+/**
+ * Aggregate stats used for comparing multiple workflows side by side --
+ * failure rate and average duration across the analyzed window. Shared by
+ * diagnose_workflow_widget's single-workflow view and
+ * compare_workflows_widget's multi-workflow view, so the two never
+ * disagree on how a number is computed.
+ */
+export function summarizeRuns(runs: WorkflowRun[]): WorkflowSummaryStats {
+  const completed = runs.filter((r) => r.status === "completed");
+  const failures = completed.filter((r) => r.conclusion === "failure");
+  const failure_rate_pct = completed.length > 0
+    ? Math.round((failures.length / completed.length) * 100)
+    : 0;
+
+  const durations = runs
+    .filter((r) => r.run_started_at && r.updated_at)
+    .map((r) => (new Date(r.updated_at).getTime() - new Date(r.run_started_at).getTime()) / 60000);
+  const avg_duration_min = durations.length > 0
+    ? Math.round((durations.reduce((a, b) => a + b, 0) / durations.length) * 10) / 10
+    : 0;
+
+  return {
+    runs_analyzed: runs.length,
+    failure_rate_pct,
+    avg_duration_min,
+    anomaly_count: detectAnomalies(runs).length,
+  };
+}
+
