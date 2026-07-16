@@ -2,21 +2,24 @@
 
 A remote MCP server that diagnoses scheduled GitHub Actions workflows:
 finds jobs that have gone silently stuck, are retrying in a loop, are
-taking progressively longer to run, or just failed on their last run.
+taking progressively longer to run, or just failed on their last run --
+and can rerun a specific run or enable/disable a workflow when asked.
 
 Tools exposed:
 - `list_scheduled_workflows` — find every workflow in a repo with a `schedule:` trigger
 - `get_workflow_runs` — raw run history for one workflow
-- `diagnose_workflow` — run history + anomaly flags (stuck / retry storm / duration creep / recent failure)
+- `diagnose_workflow` — run history + anomaly flags (stuck / retry storm / duration creep / recent failure / failure rate)
+- `rerun_workflow` — **write action**: re-runs a specific run (defaults to failed jobs only)
+- `set_workflow_enabled` — **write action**: enables or disables a workflow's schedule
 
 ## 1. Prerequisites
 
 - A GitHub account with at least one repo that has a scheduled workflow
 - A fine-grained [Personal Access Token](https://github.com/settings/personal-access-tokens/new)
-  scoped to the repo(s) you want to check, with **read-only** access to:
-  - Actions
-  - Contents
-  - Metadata
+  scoped to the repo(s) you want to check, with:
+  - **Actions: Read and write** (read for diagnostics, write for rerun/enable/disable)
+  - **Contents: Read-only**
+  - **Metadata: Read-only**
 - A [Vercel](https://vercel.com) account
 
 ## 2. Push to GitHub

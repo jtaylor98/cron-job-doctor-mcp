@@ -23,6 +23,33 @@ async function githubGet(path: string) {
   return res.json();
 }
 
+/**
+ * For write actions (POST/PUT). Separate from githubGet on purpose -- every
+ * caller of this function is doing something with a real side effect, and
+ * keeping it distinct makes that easy to audit by searching for one name.
+ */
+async function githubWrite(method: "POST" | "PUT", path: string) {
+  const token = requireEnv("GITHUB_TOKEN");
+  const res = await fetch(`${GITHUB_API_BASE}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
+
+  // GitHub returns 204 No Content for several of these write endpoints.
+  if (!res.ok) {
+    throw new Error(`GitHub API error ${res.status} on ${method} ${path}: ${await res.text()}`);
+  }
+
+  console.log(`[cron-job-doctor] WRITE ACTION: ${method} ${path} -> ${res.status}`);
+
+  if (res.status === 204) return { success: true };
+  return res.json();
+}
+
 export interface WorkflowSummary {
   id: number;
   name: string;
@@ -216,4 +243,41 @@ export function detectAnomalies(runs: WorkflowRun[]): Anomaly[] {
   }
 
   return anomalies;
+}
+
+// -----------------------------------------------------------------------
+// Remediation actions (write). Everything above this line is read-only.
+// Everything below has a real side effect on the user's GitHub repo.
+// -----------------------------------------------------------------------
+
+/**
+ * Re-runs a specific workflow run. Defaults to only re-running the failed
+ * jobs within that run (cheaper, faster) rather than the whole run from
+ * scratch -- callers can opt into a full re-run if needed.
+ */
+export async function rerunWorkflow(
+  owner: string,
+  repo: string,
+  runId: number,
+  failedJobsOnly = true
+) {
+  const endpoint = failedJobsOnly ? "rerun-failed-jobs" : "rerun";
+  return githubWrite(
+    "POST",
+    `/repos/${owner}/${repo}/actions/runs/${runId}/${endpoint}`
+  );
+}
+
+/** Enables or disables a workflow's schedule going forward. */
+export async function setWorkflowEnabled(
+  owner: string,
+  repo: string,
+  workflowId: number,
+  enabled: boolean
+) {
+  const action = enabled ? "enable" : "disable";
+  return githubWrite(
+    "PUT",
+    `/repos/${owner}/${repo}/actions/workflows/${workflowId}/${action}`
+  );
 }

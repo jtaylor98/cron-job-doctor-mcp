@@ -1,0 +1,57 @@
+<!doctype html>
+<meta charset="utf-8" />
+<!--
+  Cron Job Doctor — diagnosis widget. Renders diagnose_workflow's anomaly list
+  as color-coded cards (green = healthy, amber/red = anomalies by severity).
+  Fills via app.ontoolresult (structuredContent).
+-->
+<style>
+  /*__BRAND__*/
+  *{box-sizing:border-box} html,body{margin:0}
+  body{font-family:var(--font);color:var(--body);background:var(--paper);font-size:13px;color-scheme:light dark}
+  #root{max-width:640px;margin:0 auto}
+  .hd{display:flex;align-items:center;gap:8px;padding:12px 16px 8px}
+  .hd h1{font-size:13px;font-weight:700;color:var(--accent);margin:0;flex:1;text-transform:uppercase;letter-spacing:.04em}
+  .hd .as{font-size:10.5px;color:var(--muted);white-space:nowrap}
+  .wrap{padding:4px 16px 12px;display:grid;gap:8px}
+  .card{border:1px solid var(--line);border-left:3px solid var(--slate);border-radius:6px;padding:10px 12px;background:var(--off)}
+  .card.pass{border-left-color:var(--pass);background:var(--pass-bg)}
+  .card.watch{border-left-color:var(--watch);background:var(--watch-bg)}
+  .card.breach{border-left-color:var(--breach);background:var(--breach-bg)}
+  .lab{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+  .card.pass .lab{color:var(--pass)} .card.watch .lab{color:var(--watch)} .card.breach .lab{color:var(--breach)}
+  .msg{font-size:12.5px;color:var(--body);margin-top:3px;line-height:1.4}
+  .foot{padding:8px 16px 14px;font-size:10px;color:var(--muted);border-top:1px solid var(--line)}
+  .empty{padding:26px 16px;color:var(--muted);text-align:center}
+</style>
+<div id="root"><div class="empty">Loading diagnosis…</div></div>
+<script type="module">
+/*__EXT_APPS_BUNDLE__*/
+const { App } = globalThis.ExtApps;
+const esc=(s)=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+let DATA=null, app=null;
+const ctx=()=>app?.getHostContext?.()||{};
+const sevClass=(s)=> s==="high"?"breach": s==="medium"?"watch":"watch";
+
+function render(){
+  const root=document.getElementById("root");
+  if(!DATA){ root.innerHTML='<div class="empty">No diagnosis data.</div>'; return; }
+  const anomalies=DATA.anomalies||[];
+  const body = anomalies.length===0
+    ? `<div class="card pass"><div class="lab">Healthy</div><div class="msg">No anomalies detected across ${DATA.runs_analyzed} analyzed runs.</div></div>`
+    : anomalies.map(a=>`<div class="card ${sevClass(a.severity)}"><div class="lab">${esc(a.type)} · ${esc(a.severity)}</div><div class="msg">${esc(a.message)}</div></div>`).join("");
+  root.innerHTML = `<div class="hd"><h1>Cron Job Doctor</h1><span class="as">Workflow ${esc(DATA.workflow_id)} · ${DATA.runs_analyzed} runs analyzed</span></div>
+    <div class="wrap">${body}</div>
+    <div class="foot">Diagnosis via cron-job-doctor connector</div>`;
+}
+
+(async()=>{
+  app=new App({name:"CronJobDoctorDiagnosis",version:"1.0.0"},{availableDisplayModes:["inline"]},{autoResize:true});
+  const theme=()=>{try{document.documentElement.classList.toggle("dark",ctx().theme==="dark")}catch{}};
+  app.ontoolresult=(result)=>{ try{ DATA=result?.structuredContent ?? JSON.parse(result.content[0].text); }catch{ DATA=null; } theme(); render(); };
+  app.onhostcontextchanged=()=>{ theme(); render(); };
+  await app.connect();
+  theme(); render();
+})();
+</script>

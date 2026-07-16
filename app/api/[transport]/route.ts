@@ -5,7 +5,10 @@ import {
   isScheduledWorkflow,
   getWorkflowRuns,
   detectAnomalies,
+  rerunWorkflow,
+  setWorkflowEnabled,
 } from "@/lib/github";
+import { registerWidgets } from "@/lib/widgets";
 
 // This route calls GitHub's API per-request and must never be statically prerendered.
 export const dynamic = "force-dynamic";
@@ -81,6 +84,54 @@ const handler = createMcpHandler(async (server) => {
       };
     }
   );
+
+  server.tool(
+    "rerun_workflow",
+    "WRITE ACTION -- re-runs a specific workflow run on GitHub. This has a " +
+      "real side effect (consumes GitHub Actions minutes, may trigger real " +
+      "deployments/notifications/side effects the workflow itself performs). " +
+      "Only call this after the user has explicitly confirmed they want this " +
+      "specific run re-run -- never call it automatically as part of a " +
+      "diagnosis. Defaults to re-running only the failed jobs within the run.",
+    {
+      ...repoArgs,
+      run_id: z.number().describe("The specific run ID to re-run (not the workflow ID)"),
+      failed_jobs_only: z
+        .boolean()
+        .optional()
+        .describe("If true (default), only re-run failed jobs. If false, re-run the entire run from scratch."),
+    },
+    async ({ owner, repo, run_id, failed_jobs_only }) => {
+      const result = await rerunWorkflow(owner, repo, run_id, failed_jobs_only ?? true);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  server.tool(
+    "set_workflow_enabled",
+    "WRITE ACTION -- enables or disables a workflow's schedule going forward " +
+      "on GitHub. Disabling stops all future scheduled and manual runs until " +
+      "re-enabled. Only call this after the user has explicitly confirmed " +
+      "which workflow and which direction (enable/disable) -- never call it " +
+      "automatically as part of a diagnosis, even if a workflow looks stuck " +
+      "or broken.",
+    {
+      ...repoArgs,
+      workflow_id: z.number().describe("Workflow ID from list_scheduled_workflows"),
+      enabled: z.boolean().describe("true to enable the workflow, false to disable it"),
+    },
+    async ({ owner, repo, workflow_id, enabled }) => {
+      const result = await setWorkflowEnabled(owner, repo, workflow_id, enabled);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      };
+    }
+  );
+
+  // --- MCP Apps: diagnosis widget --------------------------------------
+  registerWidgets(server);
 },
 {
   // Optional server options (capabilities, etc.) -- none needed here.
