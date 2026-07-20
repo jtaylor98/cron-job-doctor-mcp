@@ -5,10 +5,12 @@ import {
   isScheduledWorkflow,
   getWorkflowRuns,
   detectAnomalies,
+  summarizeRuns,
   rerunWorkflow,
   setWorkflowEnabled,
 } from "@/lib/github";
 import { registerWidgets } from "@/lib/widgets";
+import { recordDiagnosis, getDiagnosisHistory, diffAgainstPrevious } from "@/lib/history";
 
 // This route calls GitHub's API per-request and must never be statically prerendered.
 export const dynamic = "force-dynamic";
@@ -65,6 +67,18 @@ const handler = createMcpHandler(async (server) => {
     async ({ owner, repo, workflow_id }) => {
       const runs = await getWorkflowRuns(owner, repo, workflow_id, 20);
       const anomalies = detectAnomalies(runs);
+      const stats = summarizeRuns(runs);
+
+      // Look up the previous diagnosis before recording this one, so we can
+      // tell the difference between a brand-new problem and one that's
+      // already been showing up in past checks.
+      const [previous] = await getDiagnosisHistory(owner, repo, workflow_id, 1);
+      const { newTypes, recurringTypes } = diffAgainstPrevious(
+        anomalies.map((a) => a.type),
+        previous ?? null
+      );
+      await recordDiagnosis(owner, repo, workflow_id, stats, anomalies);
+
       return {
         content: [
           {
@@ -75,10 +89,39 @@ const handler = createMcpHandler(async (server) => {
                 runs_analyzed: runs.length,
                 latest_run: runs[0] ?? null,
                 anomalies,
+                new_since_last_check: newTypes,
+                recurring_from_last_check: recurringTypes,
               },
               null,
               2
             ),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "get_diagnosis_history",
+    "Get past diagnosis snapshots for a workflow, showing how its failure " +
+      "rate, average duration, and flagged anomalies have changed over " +
+      "time. Use this when the user asks whether a problem is new, how " +
+      "long something has been going on, or wants a trend rather than a " +
+      "single point-in-time check.",
+    {
+      ...repoArgs,
+      workflow_id: z.number().describe("Workflow ID from list_scheduled_workflows"),
+      limit: z.number().optional().describe("How many past snapshots to return (default 20)"),
+    },
+    async ({ owner, repo, workflow_id, limit }) => {
+      const history = await getDiagnosisHistory(owner, repo, workflow_id, limit ?? 20);
+      return {
+        content: [
+          {
+            type: "text",
+            text: history.length === 0
+              ? "No history recorded yet for this workflow -- history builds up each time diagnose_workflow runs."
+              : JSON.stringify(history, null, 2),
           },
         ],
       };

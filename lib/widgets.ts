@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getWorkflowRuns, detectAnomalies, listWorkflows, isScheduledWorkflow, summarizeRuns } from "./github";
+import { recordDiagnosis } from "./history";
 import { WIDGETS } from "../app/_widgets.js";
 
 // Cron Job Doctor's widget tool + its ui:// resource. This is separate from the
@@ -35,6 +36,8 @@ export function registerWidgets(server: any) {
     async ({ owner, repo, workflow_id }: { owner: string; repo: string; workflow_id: number }) => {
       const runs = await getWorkflowRuns(owner, repo, workflow_id, 20);
       const anomalies = detectAnomalies(runs);
+      const stats = summarizeRuns(runs);
+      await recordDiagnosis(owner, repo, workflow_id, stats, anomalies);
       const payload = {
         workflow_id,
         runs_analyzed: runs.length,

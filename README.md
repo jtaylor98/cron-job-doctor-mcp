@@ -8,9 +8,11 @@ and can rerun a specific run or enable/disable a workflow when asked.
 Tools exposed:
 - `list_scheduled_workflows` — find every workflow in a repo with a `schedule:` trigger
 - `get_workflow_runs` — raw run history for one workflow
-- `diagnose_workflow` — run history + anomaly flags (stuck / retry storm / duration creep / recent failure / failure rate)
+- `diagnose_workflow` — run history + anomaly flags (stuck / retry storm / duration creep / recent failure / failure rate), and records a snapshot to history
+- `get_diagnosis_history` — past diagnosis snapshots for a workflow, so you can see trends over time rather than a single point-in-time check
 - `rerun_workflow` — **write action**: re-runs a specific run (defaults to failed jobs only)
 - `set_workflow_enabled` — **write action**: enables or disables a workflow's schedule
+- `diagnose_workflow_widget` / `compare_workflows_widget` — interactive widget versions
 
 ## 1. Prerequisites
 
@@ -39,9 +41,18 @@ git push -u origin main
 2. In **Environment Variables**, add `GITHUB_TOKEN` with your PAT
 3. Click Deploy
 
+## 4. Add Vercel KV (required for diagnosis history)
+
+`get_diagnosis_history` and the new-vs-recurring-anomaly diffing need
+somewhere to persist past snapshots between requests. In the Vercel
+project: **Storage → Create Database → KV**, then attach it to this
+project. This auto-populates the `KV_REST_API_*` environment variables
+the server needs -- no code changes required, just redeploy after
+attaching it so the env vars take effect.
+
 Every future `git push` to `main` auto-deploys.
 
-## 4. Connect it to Claude / Cowork
+## 5. Connect it to Claude / Cowork
 
 Add a custom connector pointing at:
 
