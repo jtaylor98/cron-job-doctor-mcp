@@ -20,7 +20,7 @@ Tools exposed:
 - A fine-grained [Personal Access Token](https://github.com/settings/personal-access-tokens/new)
   scoped to the repo(s) you want to check, with:
   - **Actions: Read and write** (read for diagnostics, write for rerun/enable/disable)
-  - **Contents: Read-only**
+  - **Contents: Read and write** (read for the schedule check, write for diagnosis history storage)
   - **Metadata: Read-only**
 - A [Vercel](https://vercel.com) account
 
@@ -41,16 +41,18 @@ git push -u origin main
 2. In **Environment Variables**, add `GITHUB_TOKEN` with your PAT
 3. Click Deploy
 
-## 4. Add Vercel KV (required for diagnosis history)
+## 4. Diagnosis history storage
 
-`get_diagnosis_history` and the new-vs-recurring-anomaly diffing need
-somewhere to persist past snapshots between requests. In the Vercel
-project: **Storage → Create Database → KV**, then attach it to this
-project. This auto-populates the `KV_REST_API_*` environment variables
-the server needs -- no code changes required, just redeploy after
-attaching it so the env vars take effect.
+`get_diagnosis_history` and the new-vs-recurring-anomaly diffing store
+past snapshots as a markdown file (`.cron-job-doctor/history/<workflow_id>.md`,
+containing a fenced JSON block) committed to a dedicated
+**`cron-job-doctor-history`** branch in whichever repo is being diagnosed
+-- not `main`, and not this server's own repo -- so it doesn't clutter
+the target repo's regular commit history. The branch is created
+automatically on first use; no manual setup needed beyond the token scope
+above.
 
-Every future `git push` to `main` auto-deploys.
+Every future `git push` to `main` on this server's repo auto-deploys.
 
 ## 5. Connect it to Claude / Cowork
 
