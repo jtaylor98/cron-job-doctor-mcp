@@ -1,0 +1,30 @@
+name: Heartbeat
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Say hello
+        run: echo "Still alive at $(date -u)"
+
+      - name: Simulate variable duration
+        run: |
+          SLEEP=$((RANDOM % 90))
+          if [ $((RANDOM % 5)) -eq 0 ]; then
+            SLEEP=$((SLEEP + 240))
+          fi
+          echo "Sleeping ${SLEEP}s"
+          sleep $SLEEP
+
+      - name: Randomly fail
+        run: |
+          if [ $((RANDOM % 4)) -eq 0 ]; then
+            echo "Simulated failure"
+            exit 1
+          fi
+          echo "OK"
