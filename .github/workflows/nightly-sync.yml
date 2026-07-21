@@ -1,0 +1,30 @@
+name: Nightly Sync
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Say hello
+        run: echo "Syncing at $(date -u)"
+
+      - name: Simulate longer baseline duration
+        run: |
+          SLEEP=$((60 + RANDOM % 120))
+          if [ $((RANDOM % 6)) -eq 0 ]; then
+            SLEEP=$((SLEEP + 300))
+          fi
+          echo "Sleeping ${SLEEP}s"
+          sleep $SLEEP
+
+      - name: Randomly fail
+        run: |
+          if [ $((RANDOM % 8)) -eq 0 ]; then
+            echo "Simulated failure"
+            exit 1
+          fi
+          echo "OK"
