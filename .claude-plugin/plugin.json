@@ -1,0 +1,16 @@
+{
+  "name": "cron-job-doctor",
+  "version": "1.0.0",
+  "description": "Diagnoses scheduled GitHub Actions workflows: finds stuck jobs, retry storms, duration creep, and elevated failure rates. Can also rerun failed runs and enable/disable workflows with confirmation.",
+  "author": {
+    "name": "jtaylor98"
+  },
+  "keywords": ["github-actions", "cron", "devops", "monitoring"],
+  "mcpServers": {
+    "cron-job-doctor": {
+      "url": "https://cron-job-doctor-mcp.vercel.app/api/mcp"
+    }
+  },
+  "skills": ["./skills/cron-diagnosis"],
+  "commands": ["./commands/cron-check.md", "./commands/cron-widget.md"]
+}

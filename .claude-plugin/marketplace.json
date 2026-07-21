@@ -1,0 +1,13 @@
+{
+  "name": "jtaylor98-plugins",
+  "owner": {
+    "name": "jtaylor98"
+  },
+  "plugins": [
+    {
+      "name": "cron-job-doctor",
+      "source": "./",
+      "description": "Diagnoses scheduled GitHub Actions workflows for stuck jobs, retry storms, duration creep, and failure patterns."
+    }
+  ]
+}

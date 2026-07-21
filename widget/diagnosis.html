@@ -1,0 +1,127 @@
+<!doctype html>
+<meta charset="utf-8" />
+<!--
+  Cron Job Doctor — diagnosis widget. Renders diagnose_workflow's anomaly list
+  as color-coded cards (green = healthy, amber/red = anomalies by severity).
+  Fills via app.ontoolresult (structuredContent).
+-->
+<style>
+  /*__BRAND__*/
+  *{box-sizing:border-box} html,body{margin:0}
+  body{font-family:var(--font);color:var(--body);background:var(--paper);font-size:13px;color-scheme:light dark}
+  #root{max-width:640px;margin:0 auto}
+  .hd{display:flex;align-items:center;gap:8px;padding:12px 16px 8px}
+  .hd h1{font-size:13px;font-weight:700;color:var(--accent);margin:0;flex:1;text-transform:uppercase;letter-spacing:.04em}
+  .hd .as{font-size:10.5px;color:var(--muted);white-space:nowrap}
+  .wrap{padding:4px 16px 12px;display:grid;gap:8px}
+  .card{border:1px solid var(--line);border-left:3px solid var(--slate);border-radius:6px;padding:10px 12px;background:var(--off)}
+  .card.pass{border-left-color:var(--pass);background:var(--pass-bg)}
+  .card.watch{border-left-color:var(--watch);background:var(--watch-bg)}
+  .card.breach{border-left-color:var(--breach);background:var(--breach-bg)}
+  .lab{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+  .card.pass .lab{color:var(--pass)} .card.watch .lab{color:var(--watch)} .card.breach .lab{color:var(--breach)}
+  .msg{font-size:12.5px;color:var(--body);margin-top:3px;line-height:1.4}
+  .foot{padding:8px 16px 14px;font-size:10px;color:var(--muted);border-top:1px solid var(--line)}
+  .empty{padding:26px 16px;color:var(--muted);text-align:center}
+  .chart-lab{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);padding:0 16px 4px}
+  .chart-wrap{position:relative}
+  .chart{display:flex;align-items:flex-end;gap:3px;height:70px;padding:0 16px 6px}
+  .chart span{flex:1;border-radius:2px 2px 0 0;min-height:2px;cursor:pointer}
+  .chart span.success{background:var(--pass)}
+  .chart span.failure{background:var(--breach)}
+  .chart span.other{background:var(--slate)}
+  .tip{position:absolute;pointer-events:none;background:var(--body);color:var(--paper);font-size:11px;line-height:1.4;padding:6px 9px;border-radius:5px;white-space:nowrap;transform:translate(-50%,-100%);top:0;left:0;opacity:0;transition:opacity .1s;z-index:10}
+  .tip.show{opacity:1}
+  .tip b{font-weight:700}
+  .legend{display:flex;gap:14px;padding:0 16px 10px;font-size:10.5px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:4px}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+</style>
+<div id="root"><div class="empty">Loading diagnosis…</div></div>
+<script type="module">
+/*__EXT_APPS_BUNDLE__*/
+const { App } = globalThis.ExtApps;
+const esc=(s)=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const fmtDate=(iso)=>{ if(!iso) return "unknown date"; const d=new Date(iso); return d.toLocaleDateString(undefined,{month:"short",day:"numeric"})+" "+d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}); };
+
+let DATA=null, app=null;
+const ctx=()=>app?.getHostContext?.()||{};
+const sevClass=(s)=> s==="high"?"breach": s==="medium"?"watch":"watch";
+
+function outcomeClass(conclusion){ return conclusion==="success"?"success": conclusion==="failure"?"failure":"other"; }
+
+function chartHtml(runs){
+  if(!runs || runs.length===0) return "";
+  const durations = runs.map(r=>{
+    if(!r.run_started_at || !r.updated_at) return 0;
+    return (new Date(r.updated_at) - new Date(r.run_started_at)) / 60000;
+  });
+  const max = Math.max(1, ...durations);
+  const bars = runs.map((r,i)=>{
+    const pct = Math.max(4, Math.round((durations[i]/max)*100));
+    const dur = Math.round(durations[i]);
+    const conclusion = r.conclusion || "unknown";
+    return `<span class="${outcomeClass(r.conclusion)}" style="height:${pct}%" ` +
+      `data-id="${esc(r.id)}" data-conclusion="${esc(conclusion)}" data-duration="${dur}" data-date="${esc(fmtDate(r.created_at))}"></span>`;
+  }).join("");
+  return `<div class="chart-lab">Last ${runs.length} runs (duration, oldest to newest)</div>
+    <div class="chart-wrap"><div class="chart">${bars}</div><div class="tip" id="tip"></div></div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--pass)"></i>success</span>
+      <span><i class="dot" style="background:var(--breach)"></i>failure</span>
+      <span><i class="dot" style="background:var(--slate)"></i>other</span>
+    </div>`;
+}
+
+function ask(text){ try{ app.sendMessage({role:"user",content:[{type:"text",text}]}); }catch{} }
+
+function followUpText(bar){
+  const id = bar.dataset.id, conclusion = bar.dataset.conclusion, dur = bar.dataset.duration, date = bar.dataset.date;
+  if(conclusion==="failure") return `Why did run #${id} fail? It ran on ${date} and took ${dur} minutes.`;
+  return `Tell me more about run #${id} from ${date} (${dur}m, ${conclusion}).`;
+}
+
+function wireTooltip(){
+  const wrap = document.querySelector(".chart-wrap");
+  const tip = document.getElementById("tip");
+  if(!wrap || !tip) return;
+  wrap.querySelectorAll(".chart span").forEach(bar=>{
+    bar.addEventListener("mouseenter", ()=>{
+      tip.textContent = `${bar.dataset.conclusion} · ${bar.dataset.duration}m · ${bar.dataset.date}`;
+      tip.classList.add("show");
+    });
+    bar.addEventListener("mousemove", (e)=>{
+      const rect = wrap.getBoundingClientRect();
+      tip.style.left = (e.clientX - rect.left) + "px";
+      tip.style.top = (bar.getBoundingClientRect().top - rect.top - 6) + "px";
+    });
+    bar.addEventListener("mouseleave", ()=>{ tip.classList.remove("show"); });
+    bar.addEventListener("click", ()=>{ ask(followUpText(bar)); });
+  });
+}
+
+function render(){
+  const root=document.getElementById("root");
+  if(!DATA){ root.innerHTML='<div class="empty">No diagnosis data.</div>'; return; }
+  const anomalies=DATA.anomalies||[];
+  const runsOldestFirst = (DATA.runs||[]).slice().reverse();
+  const chart = chartHtml(runsOldestFirst);
+  const body = anomalies.length===0
+    ? `<div class="card pass"><div class="lab">Healthy</div><div class="msg">No anomalies detected across ${DATA.runs_analyzed} analyzed runs.</div></div>`
+    : anomalies.map(a=>`<div class="card ${sevClass(a.severity)}"><div class="lab">${esc(a.type)} · ${esc(a.severity)}</div><div class="msg">${esc(a.message)}</div></div>`).join("");
+  root.innerHTML = `<div class="hd"><h1>Cron Job Doctor</h1><span class="as">Workflow ${esc(DATA.workflow_id)} · ${DATA.runs_analyzed} runs analyzed</span></div>
+    ${chart}
+    <div class="wrap">${body}</div>
+    <div class="foot">Diagnosis via cron-job-doctor connector</div>`;
+  wireTooltip();
+}
+
+(async()=>{
+  app=new App({name:"CronJobDoctorDiagnosis",version:"1.0.0"},{availableDisplayModes:["inline"]},{autoResize:true});
+  const theme=()=>{try{document.documentElement.classList.toggle("dark",ctx().theme==="dark")}catch{}};
+  app.ontoolresult=(result)=>{ try{ DATA=result?.structuredContent ?? JSON.parse(result.content[0].text); }catch{ DATA=null; } theme(); render(); };
+  app.onhostcontextchanged=()=>{ theme(); render(); };
+  await app.connect();
+  theme(); render();
+})();
+</script>

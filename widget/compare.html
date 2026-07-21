@@ -1,0 +1,96 @@
+<!doctype html>
+<meta charset="utf-8" />
+<!--
+  Cron Job Doctor — comparison widget. Shows failure rate and average run
+  duration side by side across multiple scheduled workflows in a repo.
+  Fills via app.ontoolresult (structuredContent).
+-->
+<style>
+  /*__BRAND__*/
+  *{box-sizing:border-box} html,body{margin:0}
+  body{font-family:var(--font);color:var(--body);background:var(--paper);font-size:13px;color-scheme:light dark}
+  #root{max-width:680px;margin:0 auto}
+  .hd{display:flex;align-items:center;gap:8px;padding:12px 16px 8px}
+  .hd h1{font-size:13px;font-weight:700;color:var(--accent);margin:0;flex:1;text-transform:uppercase;letter-spacing:.04em}
+  .hd .as{font-size:10.5px;color:var(--muted);white-space:nowrap}
+  .wrap{padding:4px 16px 12px;display:grid;gap:10px}
+  .row{border:1px solid var(--line);border-radius:6px;padding:10px 12px;cursor:pointer}
+  .row:hover{background:var(--off)}
+  .row-hd{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .name{font-weight:700;font-size:12.5px;flex:1}
+  .badge{font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px}
+  .badge.pass{background:var(--pass-bg);color:var(--pass)}
+  .badge.watch{background:var(--watch-bg);color:var(--watch)}
+  .badge.breach{background:var(--breach-bg);color:var(--breach)}
+  .metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .metric-lab{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+  .metric-bar-track{background:var(--off);border-radius:3px;height:6px;margin-top:3px;overflow:hidden}
+  .metric-bar-fill{height:100%;border-radius:3px}
+  .metric-val{font-size:11px;color:var(--muted);margin-top:2px}
+  .foot{padding:8px 16px 14px;font-size:10px;color:var(--muted);border-top:1px solid var(--line)}
+  .empty{padding:26px 16px;color:var(--muted);text-align:center}
+</style>
+<div id="root"><div class="empty">Loading comparison…</div></div>
+<script type="module">
+/*__EXT_APPS_BUNDLE__*/
+const { App } = globalThis.ExtApps;
+const esc=(s)=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+let DATA=null, app=null;
+const ctx=()=>app?.getHostContext?.()||{};
+function ask(text){ try{ app.sendMessage({role:"user",content:[{type:"text",text}]}); }catch{} }
+
+function badgeClass(w){
+  if(w.anomaly_count===0) return "pass";
+  return w.failure_rate_pct>=25 ? "breach" : "watch";
+}
+function badgeLabel(w){
+  if(w.anomaly_count===0) return "healthy";
+  return `${w.anomaly_count} anomal${w.anomaly_count===1?"y":"ies"}`;
+}
+
+function render(){
+  const root=document.getElementById("root");
+  const workflows = DATA?.workflows||[];
+  if(workflows.length===0){ root.innerHTML='<div class="empty">No scheduled workflows found.</div>'; return; }
+
+  const maxDuration = Math.max(1, ...workflows.map(w=>w.avg_duration_min));
+  const rows = workflows.map(w=>{
+    const durPct = Math.max(4, Math.round((w.avg_duration_min/maxDuration)*100));
+    return `<div class="row" data-name="${esc(w.name)}" data-id="${esc(w.workflow_id)}">
+      <div class="row-hd"><span class="name">${esc(w.name)}</span><span class="badge ${badgeClass(w)}">${badgeLabel(w)}</span></div>
+      <div class="metrics">
+        <div>
+          <div class="metric-lab">Failure rate</div>
+          <div class="metric-bar-track"><div class="metric-bar-fill" style="width:${w.failure_rate_pct}%;background:${w.failure_rate_pct>=25?"var(--breach)":w.failure_rate_pct>0?"var(--watch)":"var(--pass)"}"></div></div>
+          <div class="metric-val">${w.failure_rate_pct}% of ${w.runs_analyzed} runs</div>
+        </div>
+        <div>
+          <div class="metric-lab">Avg duration</div>
+          <div class="metric-bar-track"><div class="metric-bar-fill" style="width:${durPct}%;background:var(--accent)"></div></div>
+          <div class="metric-val">${w.avg_duration_min}m</div>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+
+  root.innerHTML = `<div class="hd"><h1>Cron Job Doctor</h1><span class="as">${esc(DATA.repo)} · ${workflows.length} workflows</span></div>
+    <div class="wrap">${rows}</div>
+    <div class="foot">Comparison via cron-job-doctor connector · click a workflow for a full diagnosis</div>`;
+
+  root.querySelectorAll(".row").forEach(row=>{
+    row.addEventListener("click", ()=>{
+      ask(`Diagnose the ${row.dataset.name} workflow (id ${row.dataset.id}) using the widget.`);
+    });
+  });
+}
+
+(async()=>{
+  app=new App({name:"CronJobDoctorCompare",version:"1.0.0"},{availableDisplayModes:["inline"]},{autoResize:true});
+  const theme=()=>{try{document.documentElement.classList.toggle("dark",ctx().theme==="dark")}catch{}};
+  app.ontoolresult=(result)=>{ try{ DATA=result?.structuredContent ?? JSON.parse(result.content[0].text); }catch{ DATA=null; } theme(); render(); };
+  app.onhostcontextchanged=()=>{ theme(); render(); };
+  await app.connect();
+  theme(); render();
+})();
+</script>
